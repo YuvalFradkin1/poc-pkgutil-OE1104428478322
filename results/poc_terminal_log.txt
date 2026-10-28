@@ -46,4 +46,7 @@ arm64
   ^^^ PATH TRAVERSAL SEQUENCE DETECTED
 
 === Running: pkgutil --expand poc.xar /tmp/safe_expand_dir ===
-Error encountered while creating /tmp/safe_expand_dir. Error 17: File exists
+pkgutil exit code: 0
+
+=== Contents inside safe_expand_dir (recursive) ===
+  /tmp/safe_expand_dir
