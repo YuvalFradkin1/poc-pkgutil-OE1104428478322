@@ -10,7 +10,10 @@ A crafted `.pkg` (XAR) archive containing a filename like:
 
     ../../../../tmp/pwned_pkgutil
 
-causes pkgutil to write a file **outside** the designated expansion directory.
+causes pkgutil to write a file **outside** the designated expansion directory on
+macOS 26 (confirmed below). On macOS 27.0.1, the slash is not traversed but the
+`..` sequences are still written verbatim to disk as a literal filename — see the
+"Differential Analysis" section.
 
 ### Root Cause
 
@@ -47,7 +50,7 @@ Running:
 
 **should** write all extracted content under `/tmp/safe_expand_dir/`.
 
-**Actual** (vulnerable) behaviour: pkgutil writes the payload to
+**Actual** (vulnerable) behaviour on macOS 26: pkgutil writes the payload to
 `/tmp/pwned_pkgutil` — four directory levels above the expand root —
 demonstrating an arbitrary file write primitive.
 
@@ -64,29 +67,75 @@ cat /tmp/pwned_pkgutil
 > pkgutil creates the destination directory itself and exits with `Error 17 (EEXIST)`
 > if it already exists.
 
-### GitHub Actions CI Results
+---
 
-The workflow `.github/workflows/poc.yml` ran on the `macos-latest` GitHub Actions runner
-and confirmed the vulnerability.
+## GitHub Actions CI Results
+
+Both runs used the same `poc.xar` (399 bytes, SHA-1 checksum). Logs are in this directory.
+
+### macOS 26.6.2 — VULNERABLE
 
 | Item | Value |
 |------|-------|
-| **macOS version** | 26.6.2 |
-| **BuildVersion** | 25G83 |
-| **Architecture** | arm64 |
-| **pkgutil binary** | `/usr/sbin/pkgutil` (universal: x86_64 + arm64e) |
-| **pkgutil exit code** | 0 |
+| macOS version | 26.6.2 |
+| BuildVersion | 25G83 |
+| Architecture | arm64 |
+| pkgutil binary | `/usr/sbin/pkgutil` (universal: x86_64 + arm64e) |
+| pkgutil exit code | 0 |
 | **Result** | **VULNERABLE** |
-| **Evidence** | `/tmp/pwned_pkgutil` created outside `/tmp/safe_expand_dir` |
+| Evidence | `/tmp/pwned_pkgutil` created outside `/tmp/safe_expand_dir` |
 
-Raw CI output is in `poc_terminal_log.txt`.
+Log: `poc_terminal_log.txt`
 
-### Scope Note — Versions Tested
+```
+RESULT: VULNERABLE
+File written OUTSIDE expansion directory:
+-rw-r--r--  1 runner  staff  42 Oct 28 12:13 /tmp/pwned_pkgutil
+Contents: pwned via pkgutil --expand path traversal
+```
 
-This CI run confirms the vulnerability on **macOS 26.6.2 (Tahoe, build 25G83)**.
+### macOS 27.0.1 — Partial Mitigation (Incomplete Fix)
 
-**macOS 27.x (beta)** has not been tested via this CI run. GitHub Actions does not
-currently offer `macos-27` runners; the `macos-latest` image resolves to 26.6.2 at
-the time of this run. The vulnerability is in the `pkgutil`/`xar` extraction path,
-which has not changed significantly between releases, but reproduction on macOS 27.0
-and 27.2 beta would require access to a device running those builds.
+| Item | Value |
+|------|-------|
+| macOS version | 27.0.1 |
+| BuildVersion | 26A434 |
+| Architecture | arm64 |
+| pkgutil binary | `/usr/sbin/pkgutil` (universal: x86_64 + arm64e + arm64e.x1) |
+| pkgutil exit code | 0 |
+| **Result** | **PARTIAL MITIGATION — not a complete fix** |
+| `/tmp/pwned_pkgutil` created | No |
+
+Log: `poc_terminal_log_macos-27.txt`
+
+**Differential Analysis:**
+
+On macOS 27.0.1, pkgutil no longer traverses the `../` sequences across directory
+boundaries. However, it does **not** reject or sanitise the malicious filename —
+instead it writes a file whose literal name contains the `..` sequences, with slashes
+replaced by colons:
+
+```
+/tmp/safe_expand_dir/..:..:..:..:tmp:pwned_pkgutil
+```
+
+This confirms that:
+1. macOS 27 changed the path-joining behaviour (slashes → colons), preventing
+   escape from the destination directory.
+2. The `<name>` field is **still accepted verbatim** without validation or rejection.
+3. An attacker who controls the archive can still write files with arbitrary
+   colon-separated names inside the expansion directory.
+4. The root cause (unsanitised `<name>` field) was not properly fixed — the mitigation
+   is a side-effect of filesystem path handling, not an input validation fix.
+
+Whether this colon-filename behaviour constitutes a separate issue is left to Apple's
+determination.
+
+---
+
+## Scope Summary
+
+| macOS | Build | Arbitrary write outside dir | Accepts traversal name |
+|-------|-------|----|----|
+| 26.6.2 | 25G83 | ✅ YES — VULNERABLE | ✅ YES |
+| 27.0.1 | 26A434 | ❌ No | ✅ YES (writes literal `..:..:` name) |
