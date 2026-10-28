@@ -96,10 +96,8 @@ jobs:
           git config user.email "poc-bot@github-actions"
           git config user.name "GitHub Actions"
           git add results/
-          git commit -m "results: poc run $(date -u +%Y-%m-%dT%H:%M:%SZ)
-
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_016osine6GRgdkb8UHqaRAGM" || echo "nothing to commit"
+          MSG="results: poc run $(date -u +%Y-%m-%dT%H:%M:%SZ)"$'\n\n'"Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"$'\n'"Claude-Session: https://claude.ai/code/session_016osine6GRgdkb8UHqaRAGM"
+          git commit -m "$MSG" || echo "nothing to commit"
           git push origin main
 
       - name: Upload artifacts
