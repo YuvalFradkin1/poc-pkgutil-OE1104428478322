@@ -10,7 +10,16 @@ permissions:
 
 jobs:
   run-poc:
-    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            label: macos-26
+          - runner: xcode-27
+            label: macos-27
+
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - name: Checkout
@@ -25,12 +34,13 @@ jobs:
       - name: Run PoC — pkgutil --expand path traversal
         run: |
           mkdir -p results
-          LOG=results/poc_terminal_log.txt
+          LOG=results/poc_terminal_log_${{ matrix.label }}.txt
           log() { echo "$@" | tee -a "$LOG"; }
 
           log "======================================"
           log "  pkgutil Path Traversal PoC"
           log "  Report: OE1104428478322"
+          log "  Runner label: ${{ matrix.label }}"
           log "======================================"
           log ""
           log "=== System ==="
@@ -85,7 +95,7 @@ jobs:
           git config user.email "poc-bot@github-actions"
           git config user.name "GitHub Actions"
           git add results/
-          MSG="results: poc run $(date -u +%Y-%m-%dT%H:%M:%SZ)"$'\n\n'"Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"$'\n'"Claude-Session: https://claude.ai/code/session_016osine6GRgdkb8UHqaRAGM"
+          MSG="results(${{ matrix.label }}): poc run $(date -u +%Y-%m-%dT%H:%M:%SZ)"$'\n\n'"Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"$'\n'"Claude-Session: https://claude.ai/code/session_016osine6GRgdkb8UHqaRAGM"
           git commit -m "$MSG" || echo "nothing to commit"
           git push origin main
 
@@ -93,7 +103,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: poc-results-${{ github.run_id }}
+          name: poc-results-${{ matrix.label }}-${{ github.run_id }}
           path: |
             poc.xar
             build_poc_xar.py
