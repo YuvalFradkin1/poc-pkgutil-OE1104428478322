@@ -47,7 +47,7 @@ jobs:
             SAFE_DIR=/tmp/safe_expand_dir
             ESCAPED=/tmp/pwned_pkgutil
             rm -rf "$SAFE_DIR" "$ESCAPED"
-            mkdir -p "$SAFE_DIR"
+            # NOTE: do NOT mkdir - pkgutil creates the destination itself
             set -x
             pkgutil --expand poc.xar "$SAFE_DIR" 2>&1; PKGUTIL_EXIT=$?
             set +x
